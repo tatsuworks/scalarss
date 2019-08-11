@@ -16,7 +16,7 @@ A RSS parser that posts to discord webhooks with new posts.
 
 |  Key |  Description  | Default Value |
 | ------------ | ------------ | ------------ |
-| maxThreads  | The max amount of threads to spawn for RSS processing.   | -1. Keep in mind this will be logically equal to `Runtime.getRuntime().availableProcessors()`  |
+| maxThreads  | The max amount of threads to spawn for RSS processing.   | -1. Keep in mind this will be logically equal to `Runtime.getRuntime().availableProcessors() * 2` when left at -1 |
 | redisHost   | The host of the redis instance to connect to.  | 127.0.0.1 |
 | redisPort   | The port of the redis instance to connect to.  | ? |
 | fdbCluster   | The FDB cluster to grab info from. | ? |
