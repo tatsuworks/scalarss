@@ -63,6 +63,22 @@ class Foundation(val config: Config) {
         Json.toJson(feeds).toString().getBytes("utf-8")
       )
     }
+
+    get(identifier) match {
+      case None => // No feed????
+      case Some(feed) =>
+        val `new` = RssFeed(feed.identifier, feed.url, feed.tries, feed.info.filter(info => info.guild == guild && info.channel == channel))
+        if (`new`.info.isEmpty) {
+          transaction.clear(
+            dir.pack(Tuple.pack(s"$UrlPrefix:$identifier"))
+          )
+        } else {
+          transaction.set(
+            dir.pack(Tuple.pack(s"$UrlPrefix:$identifier")),
+            Json.toJson(`new`).toString().getBytes("utf-8")
+          )
+        }
+    }
   }
 
   /**
