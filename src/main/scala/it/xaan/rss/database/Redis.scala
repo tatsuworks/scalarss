@@ -1,7 +1,7 @@
-package it.xaanit.rss.database
+package it.xaan.rss.database
 
 import com.redis.{RedisClient, RedisClientPool}
-import it.xaanit.rss.data.{Config, RssFeed}
+import it.xaan.rss.data.{Config, RssFeed}
 import play.api.libs.json.Json
 
 /**

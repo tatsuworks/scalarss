@@ -1,4 +1,4 @@
-package it.xaanit.rss.data
+package it.xaan.rss.data
 
 import play.api.libs.json.{Json, OFormat}
 
@@ -32,8 +32,8 @@ case class Info(
                  channel: Long,
                  guild: Long,
                  webhook: String = "",
-                 includedTags: Array[String] = Array(),
-                 excludedTags: Array[String] = Array()
+                 includedTags: Seq[String] = Seq(),
+                 excludedTags: Seq[String] = Seq()
                )
 
 object Info {

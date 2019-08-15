@@ -67,4 +67,5 @@ fabric.properties
 src/test/
 .gradle/
 
-config.json
+*.json
+AAAAAAAAAAAAA.txt

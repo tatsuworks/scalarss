@@ -1,13 +1,15 @@
-package it.xaanit.rss.database
+package it.xaan.rss.database
 
 import java.util
 
 import com.apple.foundationdb.directory.DirectoryLayer
 import com.apple.foundationdb.{FDB, Transaction}
-import it.xaanit.rss.data.{Config, Info, RssFeed}
-import play.api.libs.json.{Json, Reads}
+import it.xaan.rss.data.{Config, Info, RssFeed}
+import play.api.libs.json._
 
+import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
+import scala.util.{Failure, Success, Try}
 
 /**
  * Represents a connection to FoundationDB.
@@ -18,7 +20,8 @@ class Foundation(val config: Config) {
   private val fdb = FDB.selectAPIVersion(610)
   private val UrlPrefix = "rss_urls"
   private val DiscordPrefix = "rss_discord"
-  implicit val seq: Reads[Seq[String]] = Json.reads[Seq[String]]
+  private val layer = "srss"
+
 
   private def makeList(values: Seq[String]): util.ArrayList[String] = {
     val list = new util.ArrayList[String]()
@@ -32,13 +35,13 @@ class Foundation(val config: Config) {
    * @param identifier The identifier of the
    */
   def clear(identifier: String): Unit = execute { transaction =>
-    val dir = DirectoryLayer.getDefault.create(transaction, makeList(Seq("scala_rss"))).get()
+    val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
     get(identifier) match {
       case None => // No feed found?
       case Some(feed) =>
         feed.info.foreach(info => clearFrom(guild = info.guild, channel = info.channel, identifier = identifier))
         transaction.clear(
-          dir.pack(Tuple.pack(s"$UrlPrefix:$identifier"))
+          dir.pack(s"$UrlPrefix:$identifier")
         )
     }
   }
@@ -51,15 +54,15 @@ class Foundation(val config: Config) {
    * @param identifier The identifier of the feed to clear.
    */
   def clearFrom(guild: Long, channel: Long, identifier: String): Unit = execute { transaction =>
-    val dir = DirectoryLayer.getDefault.create(transaction, makeList(Seq("scala_rss"))).get()
+    val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
     val feeds = getFeedsForChannel(guild, channel).map(_.identifier).filter(_ != identifier)
+    val channelKey = dir.pack(s"$DiscordPrefix:$guild:$channel")
+    val urlKey = dir.pack(s"$UrlPrefix:$identifier")
     if (feeds.isEmpty) {
-      transaction.clear(
-        dir.pack(Tuple.pack(s"$DiscordPrefix:$guild:$channel"))
-      )
+      transaction.clear(channelKey)
     } else {
       transaction.set(
-        dir.pack(Tuple.pack(s"$DiscordPrefix:$guild:$channel")),
+        channelKey,
         Json.toJson(feeds).toString().getBytes("utf-8")
       )
     }
@@ -69,12 +72,10 @@ class Foundation(val config: Config) {
       case Some(feed) =>
         val `new` = RssFeed(feed.identifier, feed.url, feed.tries, feed.info.filter(info => info.guild == guild && info.channel == channel))
         if (`new`.info.isEmpty) {
-          transaction.clear(
-            dir.pack(Tuple.pack(s"$UrlPrefix:$identifier"))
-          )
+          transaction.clear(urlKey)
         } else {
           transaction.set(
-            dir.pack(Tuple.pack(s"$UrlPrefix:$identifier")),
+            urlKey,
             Json.toJson(`new`).toString().getBytes("utf-8")
           )
         }
@@ -102,26 +103,47 @@ class Foundation(val config: Config) {
    * @param identifier The identifier of the
    * @param info       The info of the RSS subscribe
    */
-  def save(url: String, increment: Boolean, identifier: String, info: Info): Unit =
-    execute { transaction =>
-      val dir = DirectoryLayer.getDefault.create(transaction, makeList(Seq("scala_rss"))).get()
+  def save(url: String, increment: Boolean, identifier: String, info: Info): Unit = {
+    val feed = get(identifier).map(old => RssFeed(
+      identifier = identifier, url = old.url, tries = if (increment) old.tries + 1 else 0, info = old.info ++ Seq(info)
+    )).getOrElse(RssFeed(identifier, url, 0, Seq(info)))
 
-      val feeds = get(identifier).map(old => RssFeed(
-        identifier = identifier, url = old.url, tries = if (increment) old.tries + 1 else 0, info = old.info ++ Seq(info)
-      )).getOrElse(RssFeed(identifier, url, 0, Seq(info)))
+    val channelFeeds = getFeedsForChannel(info.guild, info.channel).map(_.identifier) ++ Seq(identifier)
+    execute(transaction => {
+      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
 
       transaction.set(
-        dir.pack(Tuple.pack(s"$UrlPrefix:$identifier")),
-        Json.toJson(feeds).toString().getBytes("utf-8")
+        dir.pack(s"$UrlPrefix:$identifier"),
+        Json.toJson(feed).toString().getBytes("utf-8")
       )
 
-      val channelFeeds = getFeedsForChannel(info.guild, info.channel).map(_.identifier) ++ Seq(identifier)
       transaction.set(
-        dir.pack(Tuple.pack(s"$DiscordPrefix:${info.guild}:${info.channel}")),
+        dir.pack(s"$DiscordPrefix:${info.guild}:${info.channel}"),
         Json.toJson(channelFeeds).toString().getBytes("utf-8")
       )
+    })
+  }
 
-    }
+
+  def bytes(array: Array[Byte]): List[Byte] = {
+    var buffer = new ArrayBuffer[Byte]()
+    array.foreach(buffer.addOne)
+    buffer.toList
+  }
+
+
+  def updateTries(identifier: String): Unit = execute { transaction =>
+    val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+
+    val feed = get(identifier).map(old => RssFeed(
+      identifier = identifier, url = old.url, tries = old.tries + 1, info = old.info
+    ))
+
+    transaction.set(
+      dir.pack(s"$UrlPrefix:$identifier"),
+      Json.toJson(feed).toString().getBytes("utf-8")
+    )
+  }
 
 
   /**
@@ -144,18 +166,25 @@ class Foundation(val config: Config) {
    * @return Some if the RSS feed exists, else None.
    */
   def get(identifier: String): Option[RssFeed] =
-    execute[Option[RssFeed]] { transaction =>
-      val dir = DirectoryLayer.getDefault.create(transaction, makeList(Seq("scala_rss"))).get()
+    execute[Option[RssFeed]](transaction => {
+      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
       val value = transaction.get(
-        dir.pack(Tuple.pack(s"$UrlPrefix:$identifier"))
+        dir.pack(s"$UrlPrefix:$identifier")
       ).get()
+      if (value == null) None
+      else Json.parse(value).validateOpt[RssFeed].get
+    })
 
-      Json.parse(value).validateOpt[RssFeed].get
-    }
 
-  private def execute[T](exec: Transaction => T): T = {
+  def execute[T](exec: Transaction => T): T = {
     val db = fdb.open(config.fdbCluster)
-    val res = db.run[T] { tr: Transaction => exec(tr) }
+    val transaction = db.createTransaction()
+    val res = exec(transaction)
+    Try(transaction.commit().get()) match {
+      case Failure(exception) => exception.printStackTrace()
+      case Success(_) => // Ignore
+    }
+    transaction.close()
     db.close()
     res
   }
@@ -172,10 +201,10 @@ class Foundation(val config: Config) {
     .toSeq
 
   private def getFeeds(key: String): Seq[String] = execute[Seq[String]] { transaction =>
-    val dir = DirectoryLayer.getDefault.create(transaction, makeList(Seq("scala_rss"))).get()
+    val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
     transaction.getRange(
-      dir.pack(Tuple.pack(s"$key:")),
-      dir.pack(Tuple.pack(s"$key;"))
+      dir.pack(s"$key:"),
+      dir.pack(s"$key;")
     ).asList().get()
       .asScala
       .map(kv => Json.parse(kv.getValue).validateOpt[Seq[String]].get)
