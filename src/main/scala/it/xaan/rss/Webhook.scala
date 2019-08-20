@@ -14,6 +14,8 @@ object Webhook {
         if (!guild.excludedTags.exists(story.category.equals) && (guild.includedTags.isEmpty || guild.includedTags.exists(story.category.equals))) {
           val client = WebhookClient.withUrl(guild.webhook)
           val message = new WebhookMessageBuilder()
+            .setAvatarUrl("https://cdn.discordapp.com/attachments/518914613010497538/613217485264781312/8ca21ef535d1f1ce25c4e8f8446ccbff.jpg")
+            .setUsername("Tatsumaki RSS")
             .append(s"<${story.url}>")
             .addEmbeds(
               new WebhookEmbedBuilder()

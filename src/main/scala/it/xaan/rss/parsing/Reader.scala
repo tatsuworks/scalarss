@@ -50,7 +50,7 @@ object Reader {
       fdb.updateTries(url = feed.url)
     }
 
-    Try {
+    val resp = Try {
       val xml = XML.loadString(body)
       val items = (xml \ "item").toList ++ (xml \ "entry").toList
       println(s"Items: $items")
@@ -70,8 +70,14 @@ object Reader {
       val title = (xml \ "channel" \ "title").text
       val link = (xml \ "channel" \ "link").text
       ParsedFeed(title, link, stories.toSet.filter(_.updated > feed.lastUpdated))
-
     }
+
+    resp match {
+      case Failure(_) => fdb.updateTries(feed.url)
+      case Success(_) => fdb.updateChecked(feed.url)
+    }
+
+    resp
   }
 
   def getTime(iso: String, formatter: DateTimeFormatter): Long = {

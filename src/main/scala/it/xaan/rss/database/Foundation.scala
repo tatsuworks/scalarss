@@ -134,16 +134,35 @@ class Foundation(val config: Config) {
     })
   }
 
+  def updateChecked(url: String): Unit = {
+    val feed = get(url).map(old => old.copy(lastUpdated = System.currentTimeMillis()))
+    execute { transaction =>
+      feed match {
+        case Some(value) =>
+          val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+
+          transaction.set(
+            dir.pack(s"$UrlPrefix:$url"),
+            Json.toJson(value).toString().getBytes("utf-8")
+          )
+        case None => // Ignore
+      }
+    }
+  }
 
   def updateTries(url: String): Unit = {
     val feed = get(url).map(old => old.copy(tries = old.tries + 1))
     execute { transaction =>
-      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+      feed match {
+        case Some(value) =>
+          val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
 
-      transaction.set(
-        dir.pack(s"$UrlPrefix:$url"),
-        Json.toJson(feed).toString().getBytes("utf-8")
-      )
+          transaction.set(
+            dir.pack(s"$UrlPrefix:$url"),
+            Json.toJson(value).toString().getBytes("utf-8")
+          )
+        case None => // Ignore
+      }
     }
   }
 
@@ -220,7 +239,8 @@ class Foundation(val config: Config) {
    *
    * @return A possibly empty Seq of every feed.
    */
-  def allFeeds: Set[RssFeed] = getFeeds(s"$UrlPrefix").iterator.map(get)
+  def allFeeds: Set[RssFeed] = getFeeds(s"$UrlPrefix").iterator
+    .map(get)
     .filter(_.isDefined)
     .map(_.get)
     .toSet
