@@ -5,7 +5,7 @@ version := "0.1"
 scalaVersion := "2.13.0"
 
 resolvers += "jitpack" at "https://jitpack.io"
-resolvers += "dl-john-ky" at "http://dl.john-ky.io/maven/releases"
+resolvers += JCenterRepository
 
 libraryDependencies ++= Seq(
   "net.debasishg" %% "redisclient" % "3.10",
@@ -13,7 +13,8 @@ libraryDependencies ++= Seq(
   "org.foundationdb" % "fdb-java" % "6.1.9",
   "org.scalaj" %% "scalaj-http" % "2.4.2",
   "org.scala-lang.modules" %% "scala-xml" % "1.2.0",
-  "com.github.xaanit" % "Scalalin" % "1.1"
+  "com.github.xaanit" % "Scalalin" % "2d3c325",
+  "club.minnced" % "discord-webhooks" % "0.1.7"
 )
 
 mainClass in assembly := Some("it.xaan.rss.Main")

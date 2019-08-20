@@ -4,10 +4,10 @@ import play.api.libs.json.{Json, OFormat}
 
 
 case class RssFeed(
-                    identifier: String,
                     url: String,
                     tries: Int,
-                    info: Seq[Info]
+                    lastUpdated: Long,
+                    info: Set[Info]
                   )
 
 
@@ -29,11 +29,11 @@ object RssFeed {
  * @param excludedTags The tags to blacklist.
  */
 case class Info(
-                 channel: Long,
-                 guild: Long,
+                 channel: String,
+                 guild: String,
                  webhook: String = "",
-                 includedTags: Seq[String] = Seq(),
-                 excludedTags: Seq[String] = Seq()
+                 includedTags: Set[String] = Set(),
+                 excludedTags: Set[String] = Set()
                )
 
 object Info {
