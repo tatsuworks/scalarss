@@ -111,9 +111,9 @@ class Foundation(val config: Config) {
   /**
    * Saves a feed in FDB as json with the key `rss:$guild:$channel:$name`
    *
-   * @param url        The url of the feed to save.
-   * @param increment  If we should increment tries, or leave as is.
-   * @param info       The info of the RSS subscribe
+   * @param url       The url of the feed to save.
+   * @param increment If we should increment tries, or leave as is.
+   * @param info      The info of the RSS subscribe
    */
   def save(url: String, increment: Boolean, info: Info): Unit = {
     val feed = get(url).map(old => old.copy(info = old.info.filter(_ != info) ++ Set(info))).getOrElse(RssFeed(url, 0, -1, Set(info)))

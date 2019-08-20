@@ -1,8 +1,5 @@
 package it.xaan.rss.rest
 
-import java.util
-
-import com.apple.foundationdb.directory.DirectoryLayer
 import io.javalin.http.Context
 import it.xaan.rss.data.Config
 import it.xaan.rss.database.Foundation
@@ -52,6 +49,5 @@ class Feeds(val config: Config, val fdb: Foundation) extends Route[Unit]("/feeds
     respond(200, Json.toJson(fdb.getFeedsForChannel(guild, channel).map(
       old => old.copy(info = old.info.filter(info => info.guild.toLong == guild && info.channel.toLong == channel))
     )).toString())
-
   }
 }

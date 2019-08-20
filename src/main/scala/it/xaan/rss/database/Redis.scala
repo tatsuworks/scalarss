@@ -5,7 +5,7 @@ import it.xaan.rss.data.{Config, RssFeed}
 import play.api.libs.json.Json
 
 /**
- *  Represents a redis instance.
+ * Represents a redis instance.
  *
  * @param config The config to pull host and port data from.
  */

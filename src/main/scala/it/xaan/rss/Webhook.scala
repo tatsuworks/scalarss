@@ -5,7 +5,7 @@ import club.minnced.discord.webhook.send.{WebhookEmbed, WebhookEmbedBuilder, Web
 import it.xaan.rss.data.RssFeed
 import it.xaan.rss.parsing.ParsedFeed
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Try}
 
 object Webhook {
   def send(feed: RssFeed, parsed: ParsedFeed): Unit = {
@@ -33,7 +33,7 @@ object Webhook {
   }
 
   private def trail(str: String, max: Int): String = {
-    if(str.length == 0) return "No description provided."
+    if (str.length == 0) return "No description provided."
     if (max >= str.length) return str
     if (max <= 0) return ""
     val words = str.split("\\s+")

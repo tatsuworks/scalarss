@@ -9,7 +9,6 @@ import it.xaan.scalalin.rest.Route
 object Main {
   def main(args: Array[String]): Unit = {
     val master = new Master(Config())
-    master.test2()
     val routes = Array[Route[Unit]](new Feeds(master.config, master.fdb))
     Javalin.create { _ =>
 
