@@ -37,5 +37,5 @@ class Master(val config: Config) {
     }, 0, 15, TimeUnit.MINUTES)
 
   private def execute(feeds: Set[RssFeed]): Unit =
-    feeds.foreach(feed => new Worker(config, fdb).work(feed))
+    feeds.foreach(feed => pool.submit[Unit](() => new Worker(config, fdb).work(feed)))
 }
