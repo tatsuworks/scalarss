@@ -16,7 +16,7 @@ class Master(val config: Config) {
     executor.scheduleAtFixedRate(() => {
       val all = fdb.allFeeds
       if (premium.get()) {
-        val premiumGuilds = fdb.premiumGuilds ++ Set(351882295000563713L)
+        val premiumGuilds = fdb.premiumGuilds
         val feeds = all // All feeds
           .filter(feed =>
             feed.info.exists( // Filter to only the ones that match this filter

@@ -6,19 +6,21 @@ import io.javalin.apibuilder.ApiBuilder._
 import it.xaan.rss.data.Config
 import it.xaan.rss.rest.Feeds
 import it.xaan.scalalin.rest.Route
-import play.api.libs.json.{JsError, JsSuccess, Json}
+import play.api.libs.json.{JsError, JsSuccess, Json, OFormat}
+
+import scala.util.{Failure, Success, Try}
 
 object Main {
   def main(args: Array[String]): Unit = {
-    implicit val format = Json.format[Config]
+    implicit val format: OFormat[Config] = Json.format[Config]
     val cfg = File("./config.json")
     cfg.createFileIfNotExists()
-    val config = Json.parse(cfg.byteArray).validate[Config] match {
-      case JsSuccess(value, _) => value
-      case JsError(_) =>
+    val config = Try(Json.parse(cfg.byteArray).validate[Config].get) match {
+      case Failure(_) =>
         cfg.write(Json.toJson(Config()).toString())
         println("Please fill in config file!")
         return
+      case Success(value) => value
     }
     val master = new Master(config)
     master.start()
