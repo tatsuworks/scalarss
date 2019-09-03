@@ -8,7 +8,7 @@ resolvers += "jitpack" at "https://jitpack.io"
 resolvers += JCenterRepository
 
 libraryDependencies ++= Seq(
-  "net.debasishg" %% "redisclient" % "3.10",
+  "com.github.pathikrit" %% "better-files" % "3.8.0",
   "com.typesafe.play" %% "play-json" % "2.8.0-M4",
   "org.foundationdb" % "fdb-java" % "6.1.9",
   "org.scalaj" %% "scalaj-http" % "2.4.2",

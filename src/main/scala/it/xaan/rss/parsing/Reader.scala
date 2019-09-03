@@ -69,12 +69,13 @@ object Reader {
 
       val title = (xml \ "channel" \ "title").text
       val link = (xml \ "channel" \ "link").text
-      ParsedFeed(title, link, stories.toSet.filter(_.updated > feed.lastUpdated))
+      ParsedFeed(title, link, stories.toSet)
     }
 
     resp match {
       case Failure(_) => fdb.updateTries(feed.url)
-      case Success(_) => fdb.updateChecked(feed.url)
+      case Success(_) =>
+
     }
 
     resp

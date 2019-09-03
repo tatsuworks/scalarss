@@ -6,6 +6,7 @@ import com.apple.foundationdb.directory.DirectoryLayer
 import com.apple.foundationdb.{FDB, Transaction}
 import it.xaan.rss.data.{Config, Info, RssFeed}
 import play.api.libs.json._
+import com.apple.foundationdb.tuple.{Tuple => JT}
 
 import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
@@ -116,12 +117,11 @@ class Foundation(val config: Config) {
    * @param info      The info of the RSS subscribe
    */
   def save(url: String, increment: Boolean, info: Info): Unit = {
-    val feed = get(url).map(old => old.copy(info = old.info.filter(_ != info) ++ Set(info))).getOrElse(RssFeed(url, 0, -1, Set(info)))
+    val feed = get(url).map(old => old.copy(info = old.info.filter(_ != info) ++ Set(info))).getOrElse(RssFeed(url, 0, Set(info)))
 
     val channelFeeds = getFeedsForChannel(info.guild.toLong, info.channel.toLong).map(_.url).filter(_ != url) ++ Seq(url)
     execute(transaction => {
       val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-
       transaction.set(
         dir.pack(s"$UrlPrefix:$url"),
         Json.toJson(feed).toString().getBytes("utf-8")
@@ -134,8 +134,8 @@ class Foundation(val config: Config) {
     })
   }
 
-  def updateChecked(url: String): Unit = {
-    val feed = get(url).map(old => old.copy(lastUpdated = System.currentTimeMillis()))
+  def updateChecked(url: String, guild: String): Unit = {
+    val feed = get(url).map(old => old.copy(info = old.info.map(info => info.copy(lastUpdated = System.currentTimeMillis()))))
     execute { transaction =>
       feed match {
         case Some(value) =>
@@ -239,10 +239,37 @@ class Foundation(val config: Config) {
    *
    * @return A possibly empty Seq of every feed.
    */
-  def allFeeds: Set[RssFeed] = getFeeds(s"$UrlPrefix").iterator
-    .map(get)
-    .filter(_.isDefined)
-    .map(_.get)
-    .toSet
+  def allFeeds: Set[RssFeed] =
+    execute { transaction =>
+      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+      transaction.getRange(
+        dir.pack(s"$UrlPrefix:"),
+        dir.pack(s"$UrlPrefix;")
+      ).asList().get()
+        .asScala
+        .map(_.getValue)
+        .map(bytes => Try(Json.parse(bytes).validateOpt[RssFeed].get).getOrElse(None))
+        .filter(_.isDefined)
+        .map(_.get)
+        .toSet
+    }
+
+  def premiumGuilds: Set[Long] =
+    execute { transaction =>
+      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq("atlas3"))).get()
+      transaction.getRange(
+        dir.subspace(JT.from(18)).pack(Tuple.pack("", 1)),
+        dir.subspace(JT.from(18)).pack(";")
+      ).asList().get()
+        .asScala
+        .map(kv => (kv.getKey, kv.getValue))
+        .filter { case (_, time) => !expired(time) }
+        .map(_._1)
+        .map(bytes => JT.fromBytes(bytes).get(2).toString)
+        .flatMap(_.toLongOption)
+    }.toSet
+
+  private def expired(arr: Array[Byte]): Boolean =
+    arr.reverse.filter(_ != 0).foldLeft(0) { (x, y) => (x << 8) | y } >= System.currentTimeMillis()
 
 }

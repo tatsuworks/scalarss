@@ -7,8 +7,7 @@ A RSS parser that posts to discord webhooks with new posts.
 ```json
 {
   "maxThreads": -1,
-  "redisHost": "127.0.0.1",
-  "redisPort": 6379,
+  "apiPort": 8080,
   "fdbCluster": "/path/to/my/fdb.cluster",
   "redditUser": "MyReddituser"
 }
@@ -18,8 +17,7 @@ A RSS parser that posts to discord webhooks with new posts.
 |  Key |  Description  | Default Value |
 | ------------ | ------------ | ------------ |
 | maxThreads  | The max amount of threads to spawn for RSS processing.   | -1. Keep in mind this will be logically equal to `Runtime.getRuntime().availableProcessors() * 2` when left at -1 |
-| redisHost   | The host of the redis instance to connect to.  | 127.0.0.1 |
-| redisPort   | The port of the redis instance to connect to.  | ? |
-| fdbCluster   | The FDB cluster to grab info from. | ? |
+| apoPort   | The port for the API to listen to | 8080 |
+| fdbCluster   | The FDB cluster to grab info from. | /etc/foundationdb/fdb.cluster |
 | redditUser   | The name of the reddit user to put in the User-Agent. | ? |
 

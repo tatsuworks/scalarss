@@ -6,9 +6,17 @@ import play.api.libs.json.{Json, OFormat}
 case class RssFeed(
                     url: String,
                     tries: Int,
-                    lastUpdated: Long,
                     info: Set[Info]
-                  )
+                  ) {
+  override def toString: String =
+    s"""
+      |RssFeed[
+      |   url=$url,
+      |   tries=$tries,
+      |   info=$info
+      |]
+      |""".stripMargin
+}
 
 
 object RssFeed {
@@ -32,9 +40,23 @@ case class Info(
                  channel: String,
                  guild: String,
                  webhook: String = "",
+                 lastUpdated: Long = 0,
                  includedTags: Set[String] = Set(),
                  excludedTags: Set[String] = Set()
-               )
+               ) {
+
+  override def toString: String =
+    s"""
+      |Info[
+      |   channel=$channel,
+      |   guild=$guild,
+      |   webhook=$webhook,
+      |   lastUpdated=$lastUpdated
+      |   includedTags=$includedTags,
+      |   excludedTags=$excludedTags
+      |]
+      |""".stripMargin
+}
 
 object Info {
   implicit val format: OFormat[Info] = Json.format[Info]
