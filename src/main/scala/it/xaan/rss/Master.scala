@@ -3,7 +3,7 @@ package it.xaan.rss
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{Executors, TimeUnit}
 
-import it.xaan.rss.data.{Config, Info, RssFeed}
+import it.xaan.rss.data.{Config, RssFeed}
 import it.xaan.rss.database.Foundation
 
 class Master(val config: Config) {

@@ -3,10 +3,10 @@ package it.xaan.rss.database
 import java.util
 
 import com.apple.foundationdb.directory.DirectoryLayer
+import com.apple.foundationdb.tuple.{Tuple => JT}
 import com.apple.foundationdb.{FDB, Transaction}
 import it.xaan.rss.data.{Config, Info, RssFeed}
 import play.api.libs.json._
-import com.apple.foundationdb.tuple.{Tuple => JT}
 
 import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}

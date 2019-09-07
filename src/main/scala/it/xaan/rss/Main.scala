@@ -6,7 +6,7 @@ import io.javalin.apibuilder.ApiBuilder._
 import it.xaan.rss.data.Config
 import it.xaan.rss.rest.Feeds
 import it.xaan.scalalin.rest.Route
-import play.api.libs.json.{JsError, JsSuccess, Json, OFormat}
+import play.api.libs.json.{Json, OFormat}
 
 import scala.util.{Failure, Success, Try}
 
