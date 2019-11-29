@@ -20,4 +20,5 @@ A RSS parser that posts to discord webhooks with new posts.
 | apoPort   | The port for the API to listen to | 8080 |
 | fdbCluster   | The FDB cluster to grab info from. | /etc/foundationdb/fdb.cluster |
 | redditUser   | The name of the reddit user to put in the User-Agent. | ? |
+| webhookProxy | The proxy to send webhooks through. For instance if you wanted to send it to https://mywebsite.com/api/webhooks/$ID/$TOKEN, then you'd set this value to mywebsite.com/api/webhooks/ | ?
 

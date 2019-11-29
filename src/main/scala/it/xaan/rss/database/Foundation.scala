@@ -22,22 +22,55 @@ class Foundation(val config: Config) {
   private val DiscordPrefix = "rss_discord"
   private val layer = "srss"
 
-
   private def makeList(values: Seq[String]): util.ArrayList[String] = {
     val list = new util.ArrayList[String]()
     values.foreach(list.add)
     list
   }
 
+  private def makeSubspace(transaction: Transaction) = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+
+  def execute[T](mapper: Transaction => T): Try[T] =
+    Try {
+      val db = fdb.open(config.fdbCluster)
+      val res = db.run((t: Transaction) => mapper(t))
+      db.close()
+      res
+    }
+
+
+  def getFeedsWithinRange(key: String): Try[Set[RssFeed]] =
+    execute { transaction =>
+      val dir = makeSubspace(transaction)
+      transaction.getRange(
+        dir.pack(s"$UrlPrefix:"),
+        dir.pack(s"$UrlPrefix;")
+      ).asList().get
+        .asScala
+        .map(_.getValue)
+        .flatMap(bytes => Try(Json.parse(bytes).validateOpt[RssFeed].get).getOrElse(None))
+        .toSet
+    }
+
+  def getFeed(url: String): Option[RssFeed] =
+    execute { transaction =>
+      val dir = makeSubspace(transaction)
+      val value = transaction.get(
+        dir.pack(s"$UrlPrefix:$url")
+      ).get()
+      Json.parse(value).validate[RssFeed].get
+    }.toOption
+
+
   /**
    * Clears an RSS feed from use and deletes it from all channels/guilds that are subscribed to it.
    *
    * @param url The url of the feed to clear
    */
-  def clear(url: String): Unit = execute { transaction =>
-    val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-    get(url) match {
-      case None => // No feed found?
+  def clear(url: String): Try[Unit] = execute { transaction =>
+    val dir = makeSubspace(transaction)
+    getFeed(url) match {
+      case None => throw new IllegalStateException("Feed not found.")
       case Some(feed) =>
         feed.info.foreach(info => clearFrom(guild = info.guild.toLong, channel = info.channel.toLong, url = url))
         transaction.clear(
@@ -54,10 +87,10 @@ class Foundation(val config: Config) {
    * @param url     The url of the feed to clear.
    */
   def clearFrom(guild: Long, channel: Long, url: String): Unit = {
-    val feed = get(url)
+    val feed = getFeed(url)
     execute { transaction =>
-      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-      val feeds = getFeedsForChannel(guild, channel).map(_.url).filter(_ != url)
+      val dir = makeSubspace(transaction)
+      val feeds = getFeedsForChannel(guild, channel).getOrElse(Set()).map(_.url).filter(_ != url)
       val channelKey = dir.pack(s"$DiscordPrefix:$guild:$channel")
       val urlKey = dir.pack(s"$UrlPrefix:$url")
       if (feeds.isEmpty) {
@@ -82,8 +115,6 @@ class Foundation(val config: Config) {
           }
       }
     }
-
-
   }
 
   /**
@@ -93,21 +124,18 @@ class Foundation(val config: Config) {
    * @param channel the ID of the channel
    * @return A possibly empty Seq of every feed belonging to the specified channel.
    */
-  def getFeedsForChannel(guild: Long, channel: Long): Set[RssFeed] =
-    execute[Seq[String]] { transaction =>
-      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+  def getFeedsForChannel(guild: Long, channel: Long): Try[Set[RssFeed]] =
+    execute { transaction =>
+      val dir = makeSubspace(transaction)
       val bytes = transaction.get(
         dir.pack(s"$DiscordPrefix:$guild:$channel")
       ).get()
-      if (bytes == null) Seq()
-      else Json.parse(bytes).validateOpt[Seq[String]].get.getOrElse(Seq())
-    }
-      .iterator
-      .map(get)
-      .filter(_.isDefined)
-      .map(_.get)
-      .toSet
-
+      Json.parse(bytes).validateOpt[Seq[String]].get.getOrElse(Seq())
+    }.map(
+      _.iterator
+        .flatMap(getFeed)
+        .toSet
+    )
 
   /**
    * Saves a feed in FDB as json with the key `rss:$guild:$channel:$name`
@@ -117,11 +145,10 @@ class Foundation(val config: Config) {
    * @param info      The info of the RSS subscribe
    */
   def save(url: String, increment: Boolean, info: Info): Unit = {
-    val feed = get(url).map(old => old.copy(info = old.info.filter(_ != info) ++ Set(info))).getOrElse(RssFeed(url, 0, Set(info)))
-
-    val channelFeeds = getFeedsForChannel(info.guild.toLong, info.channel.toLong).map(_.url).filter(_ != url) ++ Seq(url)
+    val feed = getFeed(url).map(old => old.copy(info = old.info.filter(_ != info) ++ Set(info))).getOrElse(RssFeed(url, 0, Set(info)))
+    val channelFeeds = getFeedsForChannel(info.guild.toLong, info.channel.toLong).getOrElse(Set()).map(_.url).filter(_ != url) ++ Seq(url)
     execute(transaction => {
-      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+      val dir = makeSubspace(transaction)
       transaction.set(
         dir.pack(s"$UrlPrefix:$url"),
         Json.toJson(feed).toString().getBytes("utf-8")
@@ -134,13 +161,13 @@ class Foundation(val config: Config) {
     })
   }
 
+
   def updateChecked(url: String, guild: String): Unit = {
-    val feed = get(url).map(old => old.copy(info = old.info.map(info => info.copy(lastUpdated = System.currentTimeMillis()))))
+    val feed = getFeed(url).map(old => old.copy(info = old.info.map(info => if (info.guild == guild) info.copy(lastUpdated = System.currentTimeMillis()) else info)))
     execute { transaction =>
       feed match {
         case Some(value) =>
-          val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-
+          val dir = makeSubspace(transaction)
           transaction.set(
             dir.pack(s"$UrlPrefix:$url"),
             Json.toJson(value).toString().getBytes("utf-8")
@@ -151,11 +178,11 @@ class Foundation(val config: Config) {
   }
 
   def updateTries(url: String): Unit = {
-    val feed = get(url).map(old => old.copy(tries = old.tries + 1))
+    val feed = getFeed(url).map(old => old.copy(tries = old.tries + 1))
     execute { transaction =>
       feed match {
         case Some(value) =>
-          val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
+          val dir = makeSubspace(transaction)
 
           transaction.set(
             dir.pack(s"$UrlPrefix:$url"),
@@ -166,49 +193,16 @@ class Foundation(val config: Config) {
     }
   }
 
-
   /**
    * Grabs all feeds from a list of URLs.
    *
    * @param urls The urls to look for.
    * @return A list of feeds, if they exist.
    */
-  def getFeeds(urls: Set[String]): Set[RssFeed] =
+  def getFeedsFromUrls(urls: Set[String]): Set[RssFeed] =
     urls.iterator
-      .map(get)
-      .filter(_.isDefined)
-      .map(_.get)
+      .flatMap(getFeed)
       .toSet
-
-  /**
-   * Grabs a specific RSS feed
-   *
-   * @param url The url of the RSS feed.
-   * @return Some if the RSS feed exists, else None.
-   */
-  def get(url: String): Option[RssFeed] =
-    execute[Option[RssFeed]](transaction => {
-      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-      val value = transaction.get(
-        dir.pack(s"$UrlPrefix:$url")
-      ).get()
-      if (value == null) None
-      else Json.parse(value).validateOpt[RssFeed].get
-    })
-
-
-  def execute[T](exec: Transaction => T): T = {
-    val db = fdb.open(config.fdbCluster)
-    val transaction = db.createTransaction()
-    val res = exec(transaction)
-    Try(transaction.commit().get()) match {
-      case Failure(exception) => exception.printStackTrace()
-      case Success(_) => // Ignore
-    }
-    transaction.close()
-    db.close()
-    res
-  }
 
   /**
    * Gets all feeds in a guild
@@ -216,45 +210,16 @@ class Foundation(val config: Config) {
    * @param guild The ID of the guild
    * @return A possibly empty Seq of every feed belonging to the specified guild.
    */
-  def getFeedsForGuild(guild: Long): Set[RssFeed] = getFeeds(s"$DiscordPrefix:$guild").iterator.map(get)
-    .filter(_.isDefined)
-    .map(_.get)
-    .toSet
-
-  private def getFeeds(key: String): Set[String] = execute[Seq[String]] { transaction =>
-    val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-    transaction.getRange(
-      dir.pack(s"$key:"),
-      dir.pack(s"$key;")
-    ).asList().get()
-      .asScala
-      .map(kv => Json.parse(kv.getValue).validateOpt[Seq[String]].getOrElse(None))
-      .filter(_.isDefined)
-      .flatMap(_.get)
-      .toSeq
-  }.toSet
+  def getFeedsForGuild(guild: Long): Try[Set[RssFeed]] = getFeedsWithinRange(s"$DiscordPrefix:$guild")
 
   /**
    * Gets all feeds
    *
    * @return A possibly empty Seq of every feed.
    */
-  def allFeeds: Set[RssFeed] =
-    execute { transaction =>
-      val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq(layer))).get()
-      transaction.getRange(
-        dir.pack(s"$UrlPrefix:"),
-        dir.pack(s"$UrlPrefix;")
-      ).asList().get()
-        .asScala
-        .map(_.getValue)
-        .map(bytes => Try(Json.parse(bytes).validateOpt[RssFeed].get).getOrElse(None))
-        .filter(_.isDefined)
-        .map(_.get)
-        .toSet
-    }
+  def allFeeds: Try[Set[RssFeed]] = getFeedsWithinRange(UrlPrefix)
 
-  def premiumGuilds: Set[Long] =
+  def premiumGuilds: Try[Set[Long]] =
     execute { transaction =>
       val dir = DirectoryLayer.getDefault.createOrOpen(transaction, makeList(Seq("atlas3"))).get()
       transaction.getRange(
@@ -267,9 +232,9 @@ class Foundation(val config: Config) {
         .map(_._1)
         .map(bytes => JT.fromBytes(bytes).get(2).toString)
         .flatMap(_.toLongOption)
-    }.toSet
+    }.map(_.toSet)
+
 
   private def expired(arr: Array[Byte]): Boolean =
     arr.reverse.filter(_ != 0).foldLeft(0) { (x, y) => (x << 8) | y } >= System.currentTimeMillis()
-
 }

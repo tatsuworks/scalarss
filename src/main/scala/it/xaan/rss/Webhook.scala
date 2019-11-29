@@ -1,35 +1,41 @@
 package it.xaan.rss
 
-import club.minnced.discord.webhook.WebhookClient
-import club.minnced.discord.webhook.send.{WebhookEmbed, WebhookEmbedBuilder, WebhookMessageBuilder}
-import it.xaan.rss.data.RssFeed
-import it.xaan.rss.parsing.ParsedFeed
+import java.util.regex.Pattern
 
-import scala.util.{Failure, Try}
+import it.xaan.rss.data.{Config, EmbedFooter, RssFeed, WebhookEmbed, WebhookMessage}
+import it.xaan.rss.parsing.ParsedFeed
+import scalaj.http.Http
 
 object Webhook {
-  def send(feed: RssFeed, parsed: ParsedFeed): Unit = {
+  val pattern = Pattern.compile("(?:https?://)?(?:\\w+\\.)?discordapp\\.com/api(?:/v\\d+)?/webhooks/(\\d+)/([\\w-]+)(?:/(?:\\w+)?)?")
+
+  def send(feed: RssFeed, parsed: ParsedFeed, config: Config): Unit = {
     feed.info.foreach(guild => {
       parsed.stories.foreach(story => {
-        if (!guild.excludedTags.exists(story.category.equals) && (guild.includedTags.isEmpty || guild.includedTags.exists(story.category.equals))) {
+        if (!guild.disallowed.exists(story.category.equals) && (guild.allowed.isEmpty || guild.allowed.exists(story.category.equals))) {
           if (guild.lastUpdated < story.updated) {
-            val client = WebhookClient.withUrl(guild.webhook)
-            val message = new WebhookMessageBuilder()
-              .setAvatarUrl("https://cdn.discordapp.com/attachments/518914613010497538/613217485264781312/8ca21ef535d1f1ce25c4e8f8446ccbff.jpg")
-              .setUsername("Tatsumaki RSS")
-              .append(s"<${story.url}>")
-              .addEmbeds(
-                new WebhookEmbedBuilder()
-                  .setTitle(new WebhookEmbed.EmbedTitle(trail(story.title, 240), null))
-                  .setDescription(trail(story.description, 40))
-                  .setColor(0x249999)
-                  .setFooter(new WebhookEmbed.EmbedFooter(s"RSS Feed: ${feed.url}", null))
-                  .build()
+            val matched = pattern.matcher(guild.webhook)
+            matched.matches()
+            val id = matched.group(1)
+            val token = matched.group(2)
+            val message = WebhookMessage(
+              avatar_url = "https://cdn.discordapp.com/attachments/518914613010497538/613217485264781312/8ca21ef535d1f1ce25c4e8f8446ccbff.jpg",
+              content = s"<${story.url}>",
+              username = "Tatsumaki RSS",
+              embeds = Seq(
+                WebhookEmbed(
+                  title = trail(story.title, 240),
+                  description = trail(story.description, 40),
+                  color = 0x249999,
+                  footer = EmbedFooter(text = "RSS Feed: ${feed.url}")
+                )
               )
-            Try(client.send(message.build()).get()) match {
-              case Failure(exception) => println(s"Couldn't send message. ${exception.getLocalizedMessage}") // TODO: LOGGING
-              case _ =>
-            }
+            ).toJson
+
+            Http(s"https://${config.webhookProxy}$id/$token")
+              .postData(message)
+              .headers(("Content-Type", "application/json"))
+              .asString
           }
         }
       })

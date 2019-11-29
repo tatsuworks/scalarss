@@ -14,10 +14,10 @@ class Master(val config: Config) {
 
   def start(): Unit =
     executor.scheduleAtFixedRate(() => {
-      val all = fdb.allFeeds
+      val all = fdb.allFeeds.getOrElse(Set())
       if (premium.get()) {
-        val premiumGuilds = fdb.premiumGuilds
-        val feeds = all // All feeds
+        val premiumGuilds = fdb.premiumGuilds.getOrElse(Set())
+        val feeds = all
           .filter(feed =>
             feed.info.exists( // Filter to only the ones that match this filter
               info => premiumGuilds.contains(info.guild.toLong) // Only guilds that are in the "premium guild" set

@@ -15,7 +15,7 @@ class Worker(val config: Config, val fdb: Foundation) {
     parsed match {
       case Failure(exception) => exception.printStackTrace() // TODO: LOGGING
       case Success(value) =>
-        Webhook.send(feed, value)
+        Webhook.send(feed, value, config)
         feed.info.foreach(info => fdb.updateChecked(feed.url, info.guild))
     }
   }

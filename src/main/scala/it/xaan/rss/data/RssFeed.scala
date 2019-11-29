@@ -33,16 +33,16 @@ object RssFeed {
  * @param channel      The channel that subscribed to this RSS URL
  * @param guild        The guild that subscribed to this RSS URL
  * @param webhook      The URl of the webhook to post to.
- * @param includedTags The tags to whitelist.
- * @param excludedTags The tags to blacklist.
+ * @param allowed The tags to whitelist.
+ * @param disallowed The tags to blacklist.
  */
 case class Info(
                  channel: String,
                  guild: String,
                  webhook: String = "",
                  lastUpdated: Long = 0,
-                 includedTags: Set[String] = Set(),
-                 excludedTags: Set[String] = Set()
+                 allowed: Set[String] = Set(),
+                 disallowed: Set[String] = Set()
                ) {
 
   override def toString: String =
@@ -52,8 +52,8 @@ case class Info(
       |   guild=$guild,
       |   webhook=$webhook,
       |   lastUpdated=$lastUpdated
-      |   includedTags=$includedTags,
-      |   excludedTags=$excludedTags
+      |   includedTags=$allowed,
+      |   excludedTags=$disallowed
       |]
       |""".stripMargin
 }

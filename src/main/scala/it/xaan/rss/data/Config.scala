@@ -11,5 +11,6 @@ case class Config(
                    maxThreads: Int = -1,
                    apiPort: Int = 8080,
                    fdbCluster: String = "/etc/foundationdb/fdb.cluster",
-                   redditUser: String = ""
+                   redditUser: String = "",
+                   webhookProxy: String = ""
                  )

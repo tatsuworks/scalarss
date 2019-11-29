@@ -12,7 +12,7 @@ import scala.util.{Failure, Success, Try}
 
 object Main {
   def main(args: Array[String]): Unit = {
-    implicit val format: OFormat[Config] = Json.format[Config]
+   implicit val format: OFormat[Config] = Json.format[Config]
     val cfg = File("./config.json")
     cfg.createFileIfNotExists()
     val config = Try(Json.parse(cfg.byteArray).validate[Config].get) match {
